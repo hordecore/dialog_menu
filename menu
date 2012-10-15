@@ -3,41 +3,45 @@
 # author: Oleg Strizhechenko (github.com/hordecore)
 # project: Ideco AS 4
 
-> /var/log/menu.log
-
+LOGGING=0
+TERM=linux
 CURRENT_DIR=$(readlink /proc/$$/fd/255)
 CURRENT_DIR=${CURRENT_DIR%/*}
-TERM=linux
-CONFIG=$CURRENT_DIR/config
+LOGFILE=/var/log/menu.log
 DEF_COUNT=5
 PRODUCT='IdecoAS 4'
-default="mainmenu"
-baseopts="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
-tmpfile=/tmp/menu.$$
+BASEOPTS="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
 cmd=''
-global_index=''
 GLOBAL_PARAMS=$@
+
+CONFIG=$CURRENT_DIR/config
+
 # hack to use anywhere
-[ -f $CONFIG ] || CONFIG=config
+if [ ! -f $CONFIG ]; then
+	CONFIG=config
+fi
+
+if [ ! -f $CONFIG ]; then
+	echo "No config file found"
+	exit 44
+fi
+
+if [ "$LOGGING" = '1' ]; then
+	> /var/log/menu.log
+fi
 
 declare -A main
 
-
 . $CONFIG
+
 # показывает главное menu на основе declare в конфиге
 # widgetformat: 0 - type, 1 - label, 2 - describe
 
-fallback() {
-	set | less
-}
-
 LOG() {
-	echo $@ >> /var/log/menu.log
+	if [ "$LOGGING" = 1 ]; then
+		echo $@ >> /var/log/menu.log
+	fi
 	return 0
-}
-
-LOG2() {
-	echo $@ >> LOG2
 }
 
 create_mainmenu() {
@@ -50,9 +54,9 @@ create_mainmenu() {
 		[ -z "${item['widget']}" ] && continue
 		main[$array_name]=""
 		main[$array_name.widget]="${item['widget']}"
-		# echo "main[$array_name.widget]="${item['widget']}""
-	done <<< "$(fgrep declare $CONFIG)"
+	done <<< "$(fgrep -w declare $CONFIG)"
 	main[softreboot]=''
+	#TODO: избавиться от константы, пихнуть в конфиг
 	main[softreboot.widget]="cmd 'Применить настройки' 'save_and_exit && appctl softrouter restart'"
 	main[widget]="menu 'Меню Softrouter'"
 	return 0
@@ -73,12 +77,9 @@ __show_menu_filter() {
 
 	LOG "item@ ${item[@]}"
 	for key in ${!item[@]}; do
-		# if [[ "$key" == *$index.* && "$key" != *.widget ]]; then
 		#TODO FIX BUG 
 		[[ "$key" != *$table* ]] && continue
 		if [ -n "$table" ]; then
-			# eval eval widget=( \${$input[${key//[0-9]/}.widget]} )
-			#break
 			LOG "-n table"
 			LOG "eval eval item[$key.widget]=\${item[${key//[0-9]}.widget]}"
 			#eval eval item[$key.widget]=\${item[${key//[0-9]}.widget]}
@@ -96,35 +97,31 @@ __show_menu_filter() {
 
 		if [ -n "${item[$key.widget]}" ]; then
 			eval widget=( ${item[$key.widget]} )
-			# особые обработки виджетов
-			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
 			LOG "${FUNCNAME[0]} TYPE: ${widget[0]}"
 			case "${widget[0]}" in
-			table | menu ) 
-				widget[1]="${widget[1]}..."
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
-			checkbox )
-				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
-				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
-				;;
-			* )
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
+				table | menu ) 
+					widget[1]="${widget[1]}..."
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
+				checkbox )
+					[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+					cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+					;;
+				* )
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
 			esac
 			LOG "${FUNCNAME[0]} TMPCMD=$cmd"
 			((ITEM_COUNT++))
 		fi
 	done
-	local baseopts="$baseopts --menu '$item_name'"
+	local BASEOPTS="$BASEOPTS --menu '$item_name'"
 	cmd="$cmd 'Назад' '' ''" ; 
 	LOG "  MENU_FILTER CMD $cmd" 
 	((ITEM_COUNT++))
-	LOG "dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd"
-	#set +x
-	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 80 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	LOG "dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd"
+	REZ=$( eval dialog $BASEOPTS $((ITEM_COUNT+5)) 80 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
 	[ "$?" != 0 ] && return 1
-	#[ -n "$table" ] && set -x
 	[ "$REZ" = "Назад" ] && return 1
 	REZ=${REZ//.../} 	#Настройка интерфейсов
 	REZ=${REZ##\[?\] } 	#отрезаем checkbox
@@ -159,29 +156,27 @@ __show_menu() {
 		if [ -n "${item[$key.widget]}" ]; then
 			eval widget=( ${item[$key.widget]} )
 
-			# особые обработки виджетов
-			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
 			case "${widget[0]}" in
-			table | menu ) 
-				widget[1]="${widget[1]}..."
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
-			checkbox )
-				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
-				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
-				;;
-			* )
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
+				table | menu ) 
+					widget[1]="${widget[1]}..."
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
+				checkbox )
+					[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+					cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+					;;
+				* )
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
 			esac
 			((ITEM_COUNT++))
 		fi
 	done
 	LOG "  MENU CMD $cmd" 
-	local baseopts="$baseopts --menu '$item_name'"
+	local BASEOPTS="$BASEOPTS --menu '$item_name'"
 	cmd="$cmd 'Назад' '' ''" ; 
 	((ITEM_COUNT++))
-	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	REZ=$( eval dialog $BASEOPTS $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	REZ=${REZ//.../} 	#Настройка интерфейсов
@@ -205,25 +200,11 @@ __show_inputbox() {
 	local arr=$2
 	local index=${arr##*[}
 	# т.к. у нас итак готов глобальный виджет, ещё с show_recur
-
-	LOG "надо хавать if0.ip network и ниипет"
-	#	if [[ "$arr" == *\[*\]* ]]; then # вложенный вариант  # $1 network[if0] # $2 = network[if.ip]
-	#		index=${index%%]}	
-	#		key=$(echo $key | sed s/${index//[0-9]}/$index/)
-	#		eval VAL=${!key}
-	#	else # обычный вариант # $1 = pppoe.ip # $2 = srv 
-	#		eval VAL=\${$arr[$key]}
-	#		#два eval чтоб убрать кавычки
-	#		eval eval widget=( \${$arr[$key.widget]} ) 
-	#	fi
 	LOG WIDGET IN INPUTBOX=${widget[@]}
 	eval VAL=\${$arr[$key]}
 	LOG $VAL
 	#два eval чтоб убрать кавычки
-	# eval widget=( \${$arr[$key.widget]} ) 
 	eval widget=( ${widget[@]} ) 
-	# [ -z "${widget[1]}" ] && widget[1]="ЖОПА"
-
 	LOG VAL=$VAL
 	REZ=$( dialog --inputbox "${widget[1]}" 8 30 "$VAL" 3>&1 1>&2 2>&3 )
 	[ "$?" != 0 ] && return 1
@@ -253,17 +234,15 @@ __show_table() {
 		[[ "$key" == $index.*.widget ]] && eval item[\'$key\']=\"${network[${key}]}\" &>/dev/null 	##'this comment hack for vim highlight]
 	done
 	for iface in `seq 0 9`; do
-#		if [[ -n "$( eval echo "\${$array['$index$iface.name']} )" ]]; then 
-			cmd="$cmd '$( eval echo "\${$array['$index$iface.name']}" )' '' ''"
-			((ITEM_COUNT++))
-#		fi
+		cmd="$cmd '$( eval echo "\${$array['$index$iface.name']}" )' '' ''"
+		((ITEM_COUNT++))
 	done
 	eval widget=( ${widget[@]} )
-	local baseopts="$baseopts --menu '${widget[1]}'"
+	local BASEOPTS="$BASEOPTS --menu '${widget[1]}'"
 	cmd="$cmd 'Назад' '' ''"
 	((ITEM_COUNT++))
 
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 
@@ -295,7 +274,7 @@ __show_iface() {
 	eval eval header=( \${$array[$index.widget]} )
 	unset item
 	declare -A item
-	local baseopts="$baseopts --menu '${header[1]}'" #TODO брать откуда-то
+	local BASEOPTS="$BASEOPTS --menu '${header[1]}'" #TODO брать откуда-то
 	eval item=$(set | grep ^$array= | sed  s/$array=//)
 	echo "ITEM  ${item[@]}" >> LOG
 	for key in ${!item[@]}; do 
@@ -307,7 +286,7 @@ __show_iface() {
 	done 
 	cmd="$cmd 'Назад' '' ''"
 	((ITEM_COUNT++))
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	LOG ${item[@]}
@@ -334,7 +313,6 @@ __show_iface() {
 
 #TODO
 __show_radiolist() {
-	#TODO: status on / off, fix config, make comments [DONE]
 	# OMG
 	# __show_radiolist network[if.role] network[if0]
 
@@ -349,11 +327,9 @@ __show_radiolist() {
 	unset item
 	declare -A item
 	eval widget=( ${widget[@]} )
-	local baseopts="$baseopts --radiolist '${widget[1]}'"
+	local BASEOPTS="$BASEOPTS --radiolist '${widget[1]}'"
 	eval item=$(set | grep ^$array_name= | sed s/$array_name=//)
 	LOG WIDGETAFiTEREVAL ${widget[@]}
-	# сделать item tag status (on/off) вычислять для текущего значения help
-	# eval cmd=\${$array_name[$input.list]}
 	declare -a RADIOLIST
 	eval eval RADIOLIST=( \${$array_name[${input//[0-9]}.list]} )
 	LOG "eval RADIOLIST=( \${$array_name[$input.list]} )"
@@ -383,8 +359,8 @@ __show_radiolist() {
 	done
 	unset RADIOLIST
 	LOG CMD $cmd
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3)
-	LOG "eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd "
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3)
+	LOG "eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd "
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	LOG ${FUNCNAME[0]} REZ ${REZ%.*}
@@ -435,7 +411,7 @@ save_and_exit() {
 
 __show_() {
 	LOG ${FUNCNAME[0]} $@
-	dialog $baseopts --msgbox 'Кривые руки разработчика' 5 30
+	dialog $BASEOPTS --msgbox 'Кривые руки разработчика' 5 30
 	return 0
 }
 
@@ -476,27 +452,26 @@ show_recur() {
 
 		LOG "  WIDGET ${widget[@]}" 
 		case $item_type in
-		menu )	
-			show_recur $RESULT menu_filter $sub_table		# рекурсия для подменю
-			;;
-		table ) 
-			show_recur $menu_array[$RESULT] table 	# рекурсия для подменю
-			;;
-		iface )
-			show_recur $RESULT iface	# рекурсия для интерфейса
-			;;
-		* ) 	
-			LOG ${FUNCNAME[0]} __show_$item_type $RESULT $menu_array
-			__show_$item_type $RESULT $menu_array 
-			;;
+			menu )	
+				show_recur $RESULT menu_filter $sub_table		# рекурсия для подменю
+				;;
+			table ) 
+				show_recur $menu_array[$RESULT] table 	# рекурсия для подменю
+				;;
+			iface )
+				show_recur $RESULT iface	# рекурсия для интерфейса
+				;;
+			* ) 	
+				LOG ${FUNCNAME[0]} __show_$item_type $RESULT $menu_array
+				__show_$item_type $RESULT $menu_array 
+				;;
 		esac
 	done
 }
 
 create_mainmenu
 show_recur main menu
+
 if dialog --yesno "Сохранить изменения?" 5 30; then
 	save_and_exit
 fi
-
-
