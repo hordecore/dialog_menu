@@ -466,8 +466,7 @@ show_recur() {
 
 create_mainmenu
 show_recur main menu
+
 if dialog --yesno "Сохранить изменения?" 5 30; then
 	save_and_exit
 fi
-
-
