@@ -3,7 +3,7 @@
 # author: Oleg Strizhechenko (github.com/hordecore)
 # project: Ideco AS 4
 
-
+LOGGING=0
 TERM=linux
 CURRENT_DIR=$(readlink /proc/$$/fd/255)
 CURRENT_DIR=${CURRENT_DIR%/*}
@@ -26,7 +26,9 @@ if [ ! -f $CONFIG ]; then
 	exit 44
 fi
 
-> /var/log/menu.log
+if [ "$LOGGING" = '1' ]; then
+	> /var/log/menu.log
+fi
 
 declare -A main
 
@@ -36,7 +38,9 @@ declare -A main
 # widgetformat: 0 - type, 1 - label, 2 - describe
 
 LOG() {
-	echo $@ >> /var/log/menu.log
+	if [ "$LOGGING" = 1 ]; then
+		echo $@ >> /var/log/menu.log
+	fi
 	return 0
 }
 
@@ -52,6 +56,7 @@ create_mainmenu() {
 		main[$array_name.widget]="${item['widget']}"
 	done <<< "$(fgrep -w declare $CONFIG)"
 	main[softreboot]=''
+	#TODO: избавиться от константы, пихнуть в конфиг
 	main[softreboot.widget]="cmd 'Применить настройки' 'save_and_exit && appctl softrouter restart'"
 	main[widget]="menu 'Меню Softrouter'"
 	return 0
