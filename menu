@@ -5,25 +5,29 @@
 
 > /var/log/menu.log
 
+TERM=linux
 CURRENT_DIR=$(readlink /proc/$$/fd/255)
 CURRENT_DIR=${CURRENT_DIR%/*}
-TERM=linux
-CONFIG=$CURRENT_DIR/config
 DEF_COUNT=5
 PRODUCT='IdecoAS 4'
-default="mainmenu"
-baseopts="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
-tmpfile=/tmp/menu.$$
+BASEOPTS="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
 cmd=''
-global_index=''
 GLOBAL_PARAMS=$@
+
+CONFIG=$CURRENT_DIR/config
+
 # hack to use anywhere
-[ -f $CONFIG ] || CONFIG=config
+[ ! -f $CONFIG ] && CONFIG=config
+
+if [ ! -f $CONFIG ]; then
+	echo "No config file found"
+	exit 44
+fi
 
 declare -A main
 
-
 . $CONFIG
+
 # показывает главное menu на основе declare в конфиге
 # widgetformat: 0 - type, 1 - label, 2 - describe
 
@@ -116,13 +120,13 @@ __show_menu_filter() {
 			((ITEM_COUNT++))
 		fi
 	done
-	local baseopts="$baseopts --menu '$item_name'"
+	local BASEOPTS="$BASEOPTS --menu '$item_name'"
 	cmd="$cmd 'Назад' '' ''" ; 
 	LOG "  MENU_FILTER CMD $cmd" 
 	((ITEM_COUNT++))
-	LOG "dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd"
+	LOG "dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd"
 	#set +x
-	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 80 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	REZ=$( eval dialog $BASEOPTS $((ITEM_COUNT+5)) 80 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
 	[ "$?" != 0 ] && return 1
 	#[ -n "$table" ] && set -x
 	[ "$REZ" = "Назад" ] && return 1
@@ -178,10 +182,10 @@ __show_menu() {
 		fi
 	done
 	LOG "  MENU CMD $cmd" 
-	local baseopts="$baseopts --menu '$item_name'"
+	local BASEOPTS="$BASEOPTS --menu '$item_name'"
 	cmd="$cmd 'Назад' '' ''" ; 
 	((ITEM_COUNT++))
-	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	REZ=$( eval dialog $BASEOPTS $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	REZ=${REZ//.../} 	#Настройка интерфейсов
@@ -259,11 +263,11 @@ __show_table() {
 #		fi
 	done
 	eval widget=( ${widget[@]} )
-	local baseopts="$baseopts --menu '${widget[1]}'"
+	local BASEOPTS="$BASEOPTS --menu '${widget[1]}'"
 	cmd="$cmd 'Назад' '' ''"
 	((ITEM_COUNT++))
 
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 
@@ -295,7 +299,7 @@ __show_iface() {
 	eval eval header=( \${$array[$index.widget]} )
 	unset item
 	declare -A item
-	local baseopts="$baseopts --menu '${header[1]}'" #TODO брать откуда-то
+	local BASEOPTS="$BASEOPTS --menu '${header[1]}'" #TODO брать откуда-то
 	eval item=$(set | grep ^$array= | sed  s/$array=//)
 	echo "ITEM  ${item[@]}" >> LOG
 	for key in ${!item[@]}; do 
@@ -307,7 +311,7 @@ __show_iface() {
 	done 
 	cmd="$cmd 'Назад' '' ''"
 	((ITEM_COUNT++))
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	LOG ${item[@]}
@@ -349,7 +353,7 @@ __show_radiolist() {
 	unset item
 	declare -A item
 	eval widget=( ${widget[@]} )
-	local baseopts="$baseopts --radiolist '${widget[1]}'"
+	local BASEOPTS="$BASEOPTS --radiolist '${widget[1]}'"
 	eval item=$(set | grep ^$array_name= | sed s/$array_name=//)
 	LOG WIDGETAFiTEREVAL ${widget[@]}
 	# сделать item tag status (on/off) вычислять для текущего значения help
@@ -383,8 +387,8 @@ __show_radiolist() {
 	done
 	unset RADIOLIST
 	LOG CMD $cmd
-	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3)
-	LOG "eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd "
+	REZ=$(eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3)
+	LOG "eval dialog $BASEOPTS $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd "
 	[ "$?" != 0 ] && return 1
 	[ "$REZ" = "Назад" ] && return 1
 	LOG ${FUNCNAME[0]} REZ ${REZ%.*}
@@ -435,7 +439,7 @@ save_and_exit() {
 
 __show_() {
 	LOG ${FUNCNAME[0]} $@
-	dialog $baseopts --msgbox 'Кривые руки разработчика' 5 30
+	dialog $BASEOPTS --msgbox 'Кривые руки разработчика' 5 30
 	return 0
 }
 
