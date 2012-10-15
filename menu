@@ -1,0 +1,502 @@
+#!/bin/bash
+
+# author: Oleg Strizhechenko (github.com/hordecore)
+# project: Ideco AS 4
+
+> /var/log/menu.log
+
+CURRENT_DIR=$(readlink /proc/$$/fd/255)
+CURRENT_DIR=${CURRENT_DIR%/*}
+TERM=linux
+CONFIG=$CURRENT_DIR/config
+DEF_COUNT=5
+PRODUCT='IdecoAS 4'
+default="mainmenu"
+baseopts="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
+tmpfile=/tmp/menu.$$
+cmd=''
+global_index=''
+GLOBAL_PARAMS=$@
+# hack to use anywhere
+[ -f $CONFIG ] || CONFIG=config
+
+declare -A main
+
+
+. $CONFIG
+# показывает главное menu на основе declare в конфиге
+# widgetformat: 0 - type, 1 - label, 2 - describe
+
+fallback() {
+	set | less
+}
+
+LOG() {
+	echo $@ >> /var/log/menu.log
+	return 0
+}
+
+LOG2() {
+	echo $@ >> LOG2
+}
+
+create_mainmenu() {
+	LOG ${FUNCNAME[0]} $@
+	declare -A item
+	local cmd="$cmd"
+	local ITEM_COUNT=$DEF_COUNT
+	while read tmp tmp array_name; do
+		eval item=$(set | grep "^$array_name=" | sed s/$array_name=//)
+		[ -z "${item['widget']}" ] && continue
+		main[$array_name]=""
+		main[$array_name.widget]="${item['widget']}"
+		# echo "main[$array_name.widget]="${item['widget']}""
+	done <<< "$(fgrep declare $CONFIG)"
+	main[softreboot]=''
+	main[softreboot.widget]="cmd 'Применить настройки' 'save_and_exit && appctl softrouter restart'"
+	main[widget]="menu 'Меню Softrouter'"
+	return 0
+}
+
+__show_menu_filter() {
+	LOG ${FUNCNAME[0]} $@
+	local cmd=''
+	local ITEM_COUNT=$DEF_COUNT
+	local input="$1"  # network
+	local table="$2"  # if0
+	declare -A item
+	local REZ
+	if [ -n "$table" ]; then
+		eval item_name=\${$input[$table.name]}
+	fi
+	eval item=$(set | grep "^$input=" | sed s/$input=// | grep "$table[^0-9]" )
+
+	LOG "item@ ${item[@]}"
+	for key in ${!item[@]}; do
+		# if [[ "$key" == *$index.* && "$key" != *.widget ]]; then
+		#TODO FIX BUG 
+		[[ "$key" != *$table* ]] && continue
+		if [ -n "$table" ]; then
+			# eval eval widget=( \${$input[${key//[0-9]/}.widget]} )
+			#break
+			LOG "-n table"
+			LOG "eval eval item[$key.widget]=\${item[${key//[0-9]}.widget]}"
+			#eval eval item[$key.widget]=\${item[${key//[0-9]}.widget]}
+			#LOG "itemkeywidget ${item[$key.widget]}"
+			item[$key.widget]=${item[${key//[0-9]}.widget]}
+			LOG "itemkeywidget ${item[$key.widget]}"
+		fi
+
+		# widget'ы для массивов
+		if [ $key = widget ]; then
+			eval widget=( ${item[$key]} )
+			item_name=${widget[1]}
+			LOG "${FUNCNAME[0]} key = widget: widget ${widget[@]} item_name ${item_name}"
+		fi
+
+		if [ -n "${item[$key.widget]}" ]; then
+			eval widget=( ${item[$key.widget]} )
+			# особые обработки виджетов
+			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
+			LOG "${FUNCNAME[0]} TYPE: ${widget[0]}"
+			case "${widget[0]}" in
+			table | menu ) 
+				widget[1]="${widget[1]}..."
+				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+				;;
+			checkbox )
+				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+				;;
+			* )
+				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+				;;
+			esac
+			LOG "${FUNCNAME[0]} TMPCMD=$cmd"
+			((ITEM_COUNT++))
+		fi
+	done
+	local baseopts="$baseopts --menu '$item_name'"
+	cmd="$cmd 'Назад' '' ''" ; 
+	LOG "  MENU_FILTER CMD $cmd" 
+	((ITEM_COUNT++))
+	LOG "dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd"
+	#set +x
+	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 80 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	[ "$?" != 0 ] && return 1
+	#[ -n "$table" ] && set -x
+	[ "$REZ" = "Назад" ] && return 1
+	REZ=${REZ//.../} 	#Настройка интерфейсов
+	REZ=${REZ##\[?\] } 	#отрезаем checkbox
+	LOG "for key in ${!item[@]}; do"
+	for key in ${!item[@]}; do
+		[[ "$key" != *$table* ]] && continue
+		if [[ "${item[$key]}" == *$REZ* ]]; then 
+			LOG "if [[ "${item[$key]}" == *$REZ* ]]; then "
+			REZ=${key//.widget}
+			break
+		fi 
+	done
+	LOG ${FUNCNAME[0]} REZ2 ${REZ}
+	echo $REZ
+	return 0
+}
+
+
+__show_menu() {
+	LOG ${FUNCNAME[0]} $@
+	local cmd=''
+	local ITEM_COUNT=$DEF_COUNT
+	local input="$1"
+	declare -A item
+	local REZ
+	eval item=$(set | grep "^$input=" | sed s/$input=//)
+	for key in ${!item[@]}; do
+		if [ $key = widget ]; then
+			eval widget=( ${item[$key]} )
+			item_name=${widget[1]}
+		fi
+		if [ -n "${item[$key.widget]}" ]; then
+			eval widget=( ${item[$key.widget]} )
+
+			# особые обработки виджетов
+			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
+			case "${widget[0]}" in
+			table | menu ) 
+				widget[1]="${widget[1]}..."
+				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+				;;
+			checkbox )
+				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+				;;
+			* )
+				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+				;;
+			esac
+			((ITEM_COUNT++))
+		fi
+	done
+	LOG "  MENU CMD $cmd" 
+	local baseopts="$baseopts --menu '$item_name'"
+	cmd="$cmd 'Назад' '' ''" ; 
+	((ITEM_COUNT++))
+	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3 )
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+	REZ=${REZ//.../} 	#Настройка интерфейсов
+	REZ=${REZ##\[?\] } 	#отрезаем checkbox
+	LOG "for key in ${!item[@]}; do"
+	for key in ${!item[@]}; do
+		if [[ "${item[$key]}" == *$REZ* ]]; then 
+			REZ=${key//.widget}
+			break
+		fi 
+	done
+	LOG ${FUNCNAME[0]} REZ2 ${REZ}
+	echo $REZ
+	return 0
+}
+
+__show_inputbox() {
+	LOG ${FUNCNAME[0]} $@
+	local $REZ
+	local key=$1
+	local arr=$2
+	local index=${arr##*[}
+	# т.к. у нас итак готов глобальный виджет, ещё с show_recur
+
+	LOG "надо хавать if0.ip network и ниипет"
+	#	if [[ "$arr" == *\[*\]* ]]; then # вложенный вариант  # $1 network[if0] # $2 = network[if.ip]
+	#		index=${index%%]}	
+	#		key=$(echo $key | sed s/${index//[0-9]}/$index/)
+	#		eval VAL=${!key}
+	#	else # обычный вариант # $1 = pppoe.ip # $2 = srv 
+	#		eval VAL=\${$arr[$key]}
+	#		#два eval чтоб убрать кавычки
+	#		eval eval widget=( \${$arr[$key.widget]} ) 
+	#	fi
+	LOG WIDGET IN INPUTBOX=${widget[@]}
+	eval VAL=\${$arr[$key]}
+	LOG $VAL
+	#два eval чтоб убрать кавычки
+	# eval widget=( \${$arr[$key.widget]} ) 
+	eval widget=( ${widget[@]} ) 
+	# [ -z "${widget[1]}" ] && widget[1]="ЖОПА"
+
+	LOG VAL=$VAL
+	REZ=$( dialog --inputbox "${widget[1]}" 8 30 "$VAL" 3>&1 1>&2 2>&3 )
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+
+	if [[ "$arr" == *\[*\]* ]]; then 			# вложенный вариант
+		eval $key=$REZ
+	else 							 # обычный вариант
+		eval $arr[$key]=$REZ
+	fi
+	return 0
+}
+
+__show_table() {
+	LOG ${FUNCNAME[0]} $@
+	local cmd=''
+	local ITEM_COUNT=$DEF_COUNT
+	local input="$1"
+	local keystring=''
+	declare -A item
+	local array=${input%%[*}
+	local index=${input##*[}
+	index=${index%]}
+	local REZ
+	for key in $( eval echo \${!$array[@]} ); do
+		# мб баг тут, но вроде работает. так что в devnull
+		[[ "$key" == $index.*.widget ]] && eval item[\'$key\']=\"${network[${key}]}\" &>/dev/null 	##'this comment hack for vim highlight]
+	done
+	for iface in `seq 0 9`; do
+#		if [[ -n "$( eval echo "\${$array['$index$iface.name']} )" ]]; then 
+			cmd="$cmd '$( eval echo "\${$array['$index$iface.name']}" )' '' ''"
+			((ITEM_COUNT++))
+#		fi
+	done
+	eval widget=( ${widget[@]} )
+	local baseopts="$baseopts --menu '${widget[1]}'"
+	cmd="$cmd 'Назад' '' ''"
+	((ITEM_COUNT++))
+
+	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+
+	for key in $( eval echo \${!$array[@]} ); do 
+		if [ "$(eval echo \${$array[$key]})" = "$REZ" ]; then
+			LOG "output >> $array[${key%.*}]"
+			# echo $array[${key%.*}] 	
+			LOG ${FUNCNAME[0]} ${key%.*}
+			echo ${key%.*}
+			break
+		fi
+	done
+	return 0
+}
+
+
+__show_iface() {
+	LOG ${FUNCNAME[0]} $@
+
+	local input=$1
+	local keystring=''
+	local ITEM_COUNT=$DEF_COUNT
+	local cmd=''
+	local header
+	local REZ
+	local array=${input%%[*}
+	local index=${input##*[}
+	index=${index%]}
+	eval eval header=( \${$array[$index.widget]} )
+	unset item
+	declare -A item
+	local baseopts="$baseopts --menu '${header[1]}'" #TODO брать откуда-то
+	eval item=$(set | grep ^$array= | sed  s/$array=//)
+	echo "ITEM  ${item[@]}" >> LOG
+	for key in ${!item[@]}; do 
+		if [[ "$key" == *$index.* && "$key" != *.widget ]]; then
+			eval eval widget=( \${$array[${key//[0-9]/}.widget]} )
+			cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"
+			((ITEM_COUNT++))
+		fi
+	done 
+	cmd="$cmd 'Назад' '' ''"
+	((ITEM_COUNT++))
+	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd  3>&1 1>&2 2>&3)
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+	LOG ${item[@]}
+	LOG "Look here! There must be if0.type"
+	# заменяем в key if на $index и убираем widget #TODO!!!
+	# после этого будет возвращать if0.name
+	for key in ${!item[@]}; do
+		if [[ "${item[$key]}" == *$REZ* ]]; then
+			LOG "echo $array[${key%%.widget}]" # | sed s/${index//[0-9]}/$index/"
+			#echo ${index}%%.widget}] # | sed s/${index//[0-9]}/$index/
+			local GENERIC=${index//[0-9]}
+			local CONCRET=$index
+			REZ=${key%%.widget}
+			REZ=${REZ//${GENERIC}/${CONCRET}}
+			LOG "index $index key $key array $array REZ $REZ GENERIC $GENERIC CONCRETE $CONCRET"
+			LOG ${FUNCNAME[0]} REZ ${REZ%.*}
+			echo $REZ
+			break
+		fi
+	done
+	return 0
+
+}
+
+#TODO
+__show_radiolist() {
+	#TODO: status on / off, fix config, make comments [DONE]
+	# OMG
+	# __show_radiolist network[if.role] network[if0]
+
+	LOG ${FUNCNAME[0]} $@
+	local input=$1 			# pptpd.mppe	# network[if.role]
+	local array_name=$2		# srv		# network[if0]
+	local ITEM_COUNT=$DEF_COUNT
+	local cmd=''
+	local tmpcmd=''
+	local REZ
+	eval local VALUE=\${$array_name[$input]}
+	unset item
+	declare -A item
+	eval widget=( ${widget[@]} )
+	local baseopts="$baseopts --radiolist '${widget[1]}'"
+	eval item=$(set | grep ^$array_name= | sed s/$array_name=//)
+	LOG WIDGETAFiTEREVAL ${widget[@]}
+	# сделать item tag status (on/off) вычислять для текущего значения help
+	# eval cmd=\${$array_name[$input.list]}
+	declare -a RADIOLIST
+	eval eval RADIOLIST=( \${$array_name[${input//[0-9]}.list]} )
+	LOG "eval RADIOLIST=( \${$array_name[$input.list]} )"
+	i=0
+	local status
+	# format: 'value' 'label' 'status' 'itemhelp'
+	for key in ${!RADIOLIST[@]}; do
+		((i++)) # 0 - пустой массив | 1 - mppe-optional | 2 - label | 3 - itemhelp
+
+		if [ "$i" = '1' ]; then
+			[ "$VALUE" = "${RADIOLIST[$key]}" ] && status='on' || status='off'
+		fi
+
+		tmpcmd="$tmpcmd '${RADIOLIST[$key]}'"
+
+		if [ "$i" = '2' ]; then
+			tmpcmd="$tmpcmd '$status'"
+		fi
+
+		if [ "$i" = '3' ]; then
+			cmd="$cmd $tmpcmd"
+			LOG TMPCMD $tmpcmd
+			unset tmpcmd
+			unset status
+			i=0
+		fi
+	done
+	unset RADIOLIST
+	LOG CMD $cmd
+	REZ=$(eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3)
+	LOG "eval dialog $baseopts $((ITEM_COUNT+5)) 60 $((ITEM_COUNT+5)) $cmd "
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+	LOG ${FUNCNAME[0]} REZ ${REZ%.*}
+	[ "$REZ" != '' ] && eval $array_name['$input']="$REZ"
+	return 0
+}
+
+__show_checkbox() {
+	LOG ${FUNCNAME[0]} $@
+	local input=$1
+	local array_name=$2
+	local ITEM_COUNT=$DEF_COUNT
+	local cmd=''
+	local REZ
+	unset item
+	declare -A item
+	eval widget=( ${widget[@]} )
+	eval local value=\${$array_name[$input]}
+	LOG value $value
+	[ "$value" = 1 ] && value=0 || value=1
+	LOG eval $array_name[$input]=$value
+	eval $array_name[$input]=$value
+	LOG ${FUNCNAME[0]} REZ ${value}
+	return 0
+}
+
+__show_cmd() {
+	LOG ${FUNCNAME[0]} $@
+	eval widget=( "${widget[@]}" )
+	cmd=${widget[2]}
+	eval $cmd
+	read -p "Press enter..."
+	return 0 
+}
+
+save_and_exit() {
+	local TMPCONFIG=/tmp/tmpconfig.$$
+	while IFS== read -r var val; do
+		[[ "$var" == \#* ]] && echo $var $val && continue
+		[ "$var" = '' ] && echo && continue
+		[[ "$var" = declare* ]] && echo $var $val && continue
+		echo "$var='${!var}'"
+	done < $CONFIG > $TMPCONFIG
+	cp $TMPCONFIG $CONFIG
+	mv $TMPCONFIG /var/backup/config_$(date +%H.%M.%S_%m-%Y)
+	return 0
+}
+
+__show_() {
+	LOG ${FUNCNAME[0]} $@
+	dialog $baseopts --msgbox 'Кривые руки разработчика' 5 30
+	return 0
+}
+
+#Показывает меню
+show_recur() {
+	LOG ${FUNCNAME[0]} $@
+	local menu_array=$1
+	local menu_type=$2
+	local RESULT
+	local table=$3
+	while true; do
+		RESULT=$( __show_$menu_type $menu_array $table ) || return 0 ## выйти из меню
+		LOG "Back to ${FUNCNAME[0]}"
+		LOG "RESULT: $RESULT"
+		LOG "Menu array $menu_array"
+		#LOG "[[ "$menu_array" == *\[*\] ]] && menu_array=${menu_array##\[*}"
+		[[ "$menu_array" == *\[*\] ]] && menu_array=${menu_array%%\[*}
+		LOG "Menu array $menu_array"
+
+		LOG TRY TO EVAL WIDGET: "eval widget=( \${$menu_array[$RESULT.widget]} )"
+
+		eval widget=( \${$menu_array[$RESULT.widget]} )
+
+		item_type=${widget[0]}
+		if [ "$menu_type" = "table" ]; then
+			eval widget=( \${$menu_array[${RESULT//[0-9]}.widget]} ) 
+			item_type=menu
+			local sub_table=$RESULT
+			RESULT=$menu_array
+			LOG "eval widget=( \${$menu_array[${RESULT//[0-9]}.widget]} )"
+		fi
+
+		if [ -n "$table" ]; then
+			eval widget=( \${$menu_array[${RESULT//[0-9]}.widget]} ) 
+			item_type=${widget[0]}
+			LOG "eval widget=( \${$menu_array[${RESULT//[0-9]}.widget]} )"
+		fi
+
+		LOG "  WIDGET ${widget[@]}" 
+		case $item_type in
+		menu )	
+			show_recur $RESULT menu_filter $sub_table		# рекурсия для подменю
+			;;
+		table ) 
+			show_recur $menu_array[$RESULT] table 	# рекурсия для подменю
+			;;
+		iface )
+			show_recur $RESULT iface	# рекурсия для интерфейса
+			;;
+		* ) 	
+			LOG ${FUNCNAME[0]} __show_$item_type $RESULT $menu_array
+			__show_$item_type $RESULT $menu_array 
+			;;
+		esac
+	done
+}
+
+create_mainmenu
+show_recur main menu
+if dialog --yesno "Сохранить изменения?" 5 30; then
+	save_and_exit
+fi
+
+
