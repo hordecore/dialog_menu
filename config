@@ -1,13 +1,10 @@
 #!/bin/bash
 
 declare -A app
-app['widget']='menu "Софтроутер" "Сервис для маршрутизации абонентов"'
 app['path']='/app/softrouter'
 app['local.ip']='169.1.0.1/8'
-app['local.ip.widget']='inputbox "IP адрес приложения" "Вешается на dummy девайс при старте приложения"'
 app['wizard']='1'
-app['db.user']='KNL_USER'
-app['db.pass']='hjedvtht'
+app['ppp-server.ip']='10.0.201.1'
 
 declare -A srv
 #pptp
@@ -25,12 +22,12 @@ srv['openl2tpd.enabled.widget']='checkbox "Включить OpenL2TP-серве�
 #pppoe-server
 srv['pppoe-server.enabled']='1'
 srv['pppoe-server.enabled.widget']='checkbox "Включить PPPoE-сервер" "Включить PPPoE-сервер"'
-srv['pppoe-server.if']='eth1'
-srv['pppoe-server.if.widget']='inputbox "Интерфейс для подключения по PPPoE" "Интерфейс для подключения по PPPoE, например eth0"'
+# srv['pppoe-server.if'] 'eth1'
+# srv['pppoe-server.if.widget'] 'inputbox "Интерфейс для подключения по PPPoE" "Интерфейс для подключения по PPPoE, например eth0"'
 srv['pppoe-server.name']='IdecoAS'
 srv['pppoe-server.name.widget']='inputbox "Имя концентратора" "Для абонентов - имя службы"'
 srv['ppp-server.ip']='10.0.201.1'
-srv['ppp-server.ip.widget']='inputbox "Защищенный IP адрес" "IP-адрес для VPN-серверов"'
+srv['ppp-server.ip.widget']='inputbox "Адрес сервера для PPP-туннелей" "IP-адрес для VPN-серверов"'
 
 #firewall
 srv['firewall.enabled']='1'
@@ -43,11 +40,10 @@ srv['ideco_nasd.enabled']='1'
 
 #nfusens
 srv['nfusens.enabled']='1'
-srv['nfusens.enabled.widget']='checkbox "Включить демон отправки статистики" "Включить демон отправки статистики"'
-srv['nfusens.collector_ip']='10.90.140.2'
-srv['nfusens.collector_ip.widget']='inputbox "IP адрес netflow-коллектора"'
+srv['nfusens.collector_ip']='10.90.140.4'
+srv['nfusens.collector_ip.widget']='inputbox "IP адрес Ideco ACP (netflow-коллектора)" ""'
 srv['nfusens.collector_port']='9996'
-srv['nfusens.collector_port.widget']='inputbox "Порт netflow-коллектора" "Порт netflow-коллектора"'
+srv['nfusens.collector_port.widget']='inputbox "Порт Ideco ACP (netflow-коллектора)" "Обычно 9996"'
 
 #bind
 srv['bind.enabled']='1'
@@ -57,9 +53,9 @@ declare -A radclient
 radclient['widget']='menu "Настройки Radius" "Настройки подключения к ААА-серверу"'
 radclient['secret']='123'
 radclient['secret.widget']='inputbox "Radius-secret" "Секретный ключ для доступа к ААА-серверу"'
-radclient['authserver']='10.90.140.2:1812'
+radclient['authserver']='10.90.140.4:1812'
 radclient['authserver.widget']='inputbox "Сервер авторизации" "Сервер авторизации, формат: IP:PORT"'
-radclient['acctserver']='10.90.140.2:1813'
+radclient['acctserver']='10.90.140.4:1813'
 radclient['acctserver.widget']='inputbox "Сервер аккаунтинга" "Сервер аккаунтинга, формат: IP:PORT"'
 radclient['nas_identifier']='10.90.140.8'
 radclient['nas_identifier.widget']='inputbox "IP адрес этого NAS-сервера" "Является идентификатором этого AS в настройках Radius-сервера биллинга"'
@@ -68,15 +64,13 @@ declare -A network
 network['widget']='menu "Настройка сети" "Настройка сети"'
 
 #общие для всех интерфейсов виджеты
-#srv['nfusens.enabled.widget'] 'checkbox "Включить демон отправки статистики" "Включить демон отправки статистики"'
 network['if.widget']='table "Настройка интерфейсов" "Настройки интерфейса: ip/mask, gate"'
 network['if']=''
 network['if.ip.widget']='inputbox "IP адрес интерфейса" "IP адрес интерфейса и маска, формат 10.90.140.10/24"'
 network['if.name.widget']='inputbox "Имя интерфейса" "Имя интерфейса, например Внешний интерфейс"'
 network['if.gate.widget']='inputbox "IP адрес шлюза" "IP адрес шлюза, например 10.0.0.1"'
-network['if.enabled.widget']='checkbox "Включить интерфейс" "Включить/выключить интерфейс"'
+network['if.disabled.widget']='checkbox "Отключить интерфейс" "Включить/выключить интерфейс"'
 network['if.device.widget']='inputbox "Физический интерфейс" "Физический интерфейс, например eth0/eth1"'
-network['if.type.widget']='inputbox "Тип интерфейса" "Тип интерфейса: eth / vlan"'
 network['if.brd.widget']='inputbox "Бродкаст адрес" "Необходимо только для vlan"'
 network['if.tag.widget']='inputbox "Тэг vlan" "Необходимо только для vlan"'
 network['if.role.widget']='radiolist "Роль интерфейса" "External - внешний, Local - внутренний"'
@@ -87,16 +81,16 @@ network['if0.name']='Внешний интерфейс'
 network['if0.ip']='10.90.140.8/16'
 network['if0.gate']='10.90.1.3'
 network['if0.device']='eth0'
-network['if0.enabled']='1'
+network['if0.disabled']='0'
 network['if0.type']='ethernet'
 network['if0.role']='External'
 
 #if1
 network['if1.name']='Локальный интерфейс'
-network['if1.ip']='192.168.15.2/16'
+network['if1.ip']='192.168.15.1/24'
 network['if1.gate']=''
 network['if1.device']='eth1'
-network['if1.enabled']='1'
+network['if1.disabled']='0'
 network['if1.type']='ethernet'
 network['if1.role']='Local'
 
@@ -106,11 +100,9 @@ network['if2.widget']='iface "Настройка интерфейса if2" "На
 network['if2.ip']=''
 network['if2.gate']=''
 network['if2.device']='eth0'
-network['if2.enabled']='0'
+network['if2.disabled']='1'
 network['if2.type']='ethernet'
 network['if2.role']=''
-
-
 
 #if3
 network['if3.name']='Ненастроенный интерфейс'
@@ -118,10 +110,9 @@ network['if3.widget']='iface "Настройка интерфейса if3" "На
 network['if3.ip']=''
 network['if3.gate']=''
 network['if3.device']='eth0'
-network['if3.enabled']='0'
+network['if3.disabled']='1'
 network['if3.type']='ethernet'
 network['if3.role']=''
-
 
 
 #if4
@@ -130,7 +121,7 @@ network['if4.widget']='iface "Настройка интерфейса if4" "На
 network['if4.ip']=''
 network['if4.gate']=''
 network['if4.device']='eth0'
-network['if4.enabled']='0'
+network['if4.disabled']='1'
 network['if4.type']='ethernet'
 network['if4.role']=''
 
@@ -142,7 +133,7 @@ network['if5.widget']='iface "Настройка интерфейса if5" "На
 network['if5.ip']=''
 network['if5.gate']=''
 network['if5.device']='eth0'
-network['if5.enabled']='0'
+network['if5.disabled']='1'
 network['if5.type']='ethernet'
 network['if5.role']=''
 
@@ -154,7 +145,7 @@ network['if6.widget']='iface "Настройка интерфейса if6" "На
 network['if6.ip']=''
 network['if6.gate']=''
 network['if6.device']='eth0'
-network['if6.enabled']='0'
+network['if6.disabled']='1'
 network['if6.type']='ethernet'
 network['if6.role']=''
 
@@ -164,7 +155,7 @@ network['if7.widget']='iface "Настройка интерфейса if7" "На
 network['if7.ip']=''
 network['if7.gate']=''
 network['if7.device']='eth0'
-network['if7.enabled']='0'
+network['if7.disabled']='1'
 network['if7.type']='ethernet'
 network['if7.role']=''
 
@@ -176,7 +167,7 @@ network['if8.widget']='iface "Настройка интерфейса if8" "На
 network['if8.ip']=''
 network['if8.gate']=''
 network['if8.device']='eth0'
-network['if8.enabled']='0'
+network['if8.disabled']='1'
 network['if8.type']='ethernet'
 network['if8.role']=''
 
@@ -188,7 +179,7 @@ network['if9.widget']='iface "Настройка интерфейса if9" "На
 network['if9.ip']=''
 network['if9.gate']=''
 network['if9.device']='eth0'
-network['if9.enabled']='0'
+network['if9.disabled']='1'
 network['if9.type']='ethernet'
 network['if9.role']=''
 
