@@ -6,7 +6,7 @@ CURRENT_DIR=${CURRENT_DIR%/*}
 TERM=linux
 CONFIG=$CURRENT_DIR/config
 DEF_COUNT=5
-PRODUCT='IdecoAS 4'
+PRODUCT='Ideco Access Server 4'
 default="mainmenu"
 baseopts="--stdout --output-fd 2 --colors --trim  --backtitle '$PRODUCT: ${app[name]}' --cancel-label 'Назад' --no-shadow --item-help"
 tmpfile=/tmp/menu.$$
@@ -75,6 +75,34 @@ create_mainmenu() {
 	return 0
 }
 
+__show_interface_list() {
+	LOG ${FUNCNAME[0]} $@
+	local cmd=''
+	local ITEM_COUNT=$DEF_COUNT
+	local input="$1"
+	local array="$2"
+	declare -A item
+	local REZ
+	item_name="Выбор интерфейса"
+	for iface in $(cat /proc/net/dev | awk -F : '{if (NR>2) print $1}' | egrep -v "(lo|imq|tunl|teql|gre|vnet)"); do
+		local real_iface=$(echo $iface | tr -d '[A-Z]')
+		cmd="$cmd '$real_iface' '' ''"
+	done
+	LOG "IFACE LIST  CMD $cmd"
+	local baseopts="$baseopts --menu '$item_name'"
+	cmd="$cmd 'Назад' '' ''" ;
+	((ITEM_COUNT++))
+	REZ=$( eval dialog $baseopts $((ITEM_COUNT+5)) 70 $((ITEM_COUNT+5)) $cmd 3>&1 1>&2 2>&3 )
+	[ "$?" != 0 ] && return 1
+	[ "$REZ" = "Назад" ] && return 1
+	eval $array[$input]=\"$REZ\"
+	LOG ${FUNCNAME[0]} REZ2 ${REZ}
+	echo $REZ
+	return 0
+
+}
+
+
 __show_menu_filter() {
 	LOG ${FUNCNAME[0]} $@
 	local cmd=''
@@ -117,17 +145,17 @@ __show_menu_filter() {
 			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
 			LOG "${FUNCNAME[0]} TYPE: ${widget[0]}"
 			case "${widget[0]}" in
-			table | menu ) 
-				widget[1]="${widget[1]}..."
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
-			checkbox )
-				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
-				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
-				;;
-			* )
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
+				table | menu ) 
+					widget[1]="${widget[1]}..."
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
+				checkbox )
+					[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+					cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+					;;
+				* )
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
 			esac
 			LOG "${FUNCNAME[0]} TMPCMD=$cmd"
 			((ITEM_COUNT++))
@@ -179,17 +207,17 @@ __show_menu() {
 			# особые обработки виджетов
 			#TODO: спросить осв как лучше подрефакторить чтобы не дублировать код
 			case "${widget[0]}" in
-			table | menu ) 
-				widget[1]="${widget[1]}..."
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
-			checkbox )
-				[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
-				cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
-				;;
-			* )
-				cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
-				;;
+				table | menu ) 
+					widget[1]="${widget[1]}..."
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
+				checkbox )
+					[ "${item[$key]}" = '1' ] && widget[1]="[*] ${widget[1]}" || widget[1]="[ ] ${widget[1]}"
+					cmd="$cmd '${widget[1]}' '' '${widget[2]}'"	
+					;;
+				* )
+					cmd="$cmd '${widget[1]}' '${item[$key]}' '${widget[2]}'"	
+					;;
 			esac
 			((ITEM_COUNT++))
 		fi
@@ -288,6 +316,20 @@ __show_table() {
 	local array=${input%%[*}
 	local index=${input##*[}
 	index=${index%]}
+
+	# soi, 26.10.12
+	# мегакостыль, тем не менее подходит для любых массивов почему-то 
+	# при переходе назад к таблице index оказывается обнулен поэтому 
+	# достаем из сохраненного subtable который точно не пуст текстовую
+	# часть, которая по сути является нужным нам индексом.
+	#                                       
+	# Тем не менее обязательно перепилить           
+
+	if [ "$index" = "$array" -a -n "$sub_table" ]; then     
+		BUGGED=1                                                                
+		index=${sub_table//[0-9]/}                                                              
+	fi  
+
 	local REZ
 	for key in $( eval echo \${!$array[@]} ); do
 		# мб баг тут, но вроде работает. так что в devnull
@@ -519,19 +561,19 @@ show_recur() {
 
 		LOG "  WIDGET ${widget[@]}" 
 		case $item_type in
-		menu )	
-			show_recur $RESULT menu_filter $sub_table		# рекурсия для подменю
-			;;
-		table ) 
-			show_recur $menu_array[$RESULT] table 	# рекурсия для подменю
-			;;
-		iface )
-			show_recur $RESULT iface	# рекурсия для интерфейса
-			;;
-		* ) 	
-			LOG ${FUNCNAME[0]} __show_$item_type $RESULT $menu_array
-			__show_$item_type $RESULT $menu_array 
-			;;
+			menu )	
+				show_recur $RESULT menu_filter $sub_table		# рекурсия для подменю
+				;;
+			table ) 
+				show_recur $menu_array[$RESULT] table 	# рекурсия для подменю
+				;;
+			iface )
+				show_recur $RESULT iface	# рекурсия для интерфейса
+				;;
+			* ) 	
+				LOG ${FUNCNAME[0]} __show_$item_type $RESULT $menu_array
+				__show_$item_type $RESULT $menu_array 
+				;;
 		esac
 	done
 }
