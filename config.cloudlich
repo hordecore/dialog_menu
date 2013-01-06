@@ -3,20 +3,21 @@
 declare -A app
 app['name']='Cloudlich 1.00'
 
-declare -A srv
-# transmission
-srv['transmission.uplimit']="200"
-srv['transmission.uplinit.widget']='inputbox "Максимальная скорость закачивания" ""'
-srv['transmission.downlimit']='2000'
-srv['transmission.downlinit.widget']='inputbox "Максимальная скорость скачивания" ""'
-srv['transmission.finish']='/usr/local/bin/on_finish.sh'
-srv['transmission.finish.widget']='inputbox "Скрипт, запускаемый после скачивания" ""'
-srv['transmission.encryption']="-er"
-srv['transmission.encryption.widget']='radiolist "Настройки шифрования PPTP" "Выбор типа шифрования PPTP, либо отказ от него"'
-srv['transmission.encryption.list']='"-ep" "Предпочитать зашифрованные соединения" "" "-et" "Предпочитать незашифрованные соединения" "" "-er" "Использовать только зашифрованые соединения" ""'
-srv['transmission.storage']='/storage/'
-srv['transmission.storage.widget']='inputbox "Папка для загрузок" ""'
+declare -A transmission
+transmission['widget']='menu "Настройки торрент-клиента" ""'
+transmission['uplimit']='200'
+transmission['uplimit.widget']='inputbox "Максимальная скорость закачивания" ""'
+transmission['downlimit']='2000'
+transmission['downlimit.widget']='inputbox "Максимальная скорость скачивания" ""'
+transmission['finish']='/usr/local/bin/on_finish.sh'
+transmission['finish.widget']='inputbox "Скрипт, запускаемый после скачивания" ""'
+transmission['encryption']='-er'
+transmission['encryption.widget']='radiolist "Настройки шифрования PPTP" "Выбор типа шифрования PPTP, либо отказ от него"'
+transmission['encryption.list']='"-ep" "Предпочитать зашифрованные соединения" "" "-et" "Предпочитать незашифрованные соединения" "" "-er" "Использовать только зашифрованые соединения" ""'
+transmission['storage']='/storage/'
+transmission['storage.widget']='inputbox "Папка для загрузок" ""'
 
-# web interface
-srv['userhttpd.port']="80"
-srv['userhttpd.port.widget']='inputbox "Порт для веб-интерфейса пользователей" ""'
+declare -A httpd
+httpd['widget']='menu "Настройки веб-сервера" ""'
+httpd['user.port']='80'
+httpd['user.port.widget']='inputbox "Порт для веб-интерфейса пользователей" ""'
