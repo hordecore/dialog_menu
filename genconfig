@@ -1,0 +1,33 @@
+#!/bin/bash
+
+CONFIG=/config
+. $CONFIG
+
+genconfig() 
+{
+	while IFS= read -r line; do
+		if [ "${line:0:1}" = "#"  ]; then
+			echo "$line"
+			continue
+		fi      
+		while [[ "$line" = *@@@*%%%* ]]; do
+			VARNAME=""
+			VARNAME="${line#*@@@}"
+			VARNAME="${VARNAME%%%%%*}"
+			VARVALUE=""
+			[ "$VARNAME" != "" ] && eval VARVALUE="\$$VARNAME"
+			line="${line//@@@$VARNAME%%%/$VARVALUE}"
+		done
+		echo "$line"
+	done < $tmpltfile >$conffile
+}
+
+
+# pppoe-server-options example
+conffile=/etc/ppp/pppoe-server-options
+tmpltfile=/etc/ppp/pppoe-server-options.tmplt
+
+pppoe_server_name="${srv[pppoe_server_name]}"
+ppp_server_ip="${srv[ppp-server.ip]}"
+
+genconfig
