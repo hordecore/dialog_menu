@@ -1,0 +1,68 @@
+<html>
+  <head>
+    <title></title>
+    <meta content="">
+    <style></style>
+    <script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
+  </head>
+ <script>
+ $(document).ready(function() {
+	$('#butt1').click(function() {
+		var ta = $('#ta');
+		var str = $('#ta').val();
+		var raz = $('#razname').val();
+		str += "\r\n";
+		str += raz+'[\''+$('#name').val()+'\']=\''+$('#varname').val()+'\'';
+		str += "\r\n";
+		str += raz+'[\''+$('#name').val()+'.widget\']=\''+$('#inputtype').val()+' "'+$('#name1').val()+'" "'+$('#descr').val()+'"'+'\'';
+		str += "\r\n";
+		$('#ta').val(str);
+		
+        });
+	$('#butt2').click(function() {	
+		$('#descr').val($('#name1').val());
+        });
+	$('#butt3').click(function() {	
+		$('#descr').val('');
+		$('#name').val('');
+		$('#name1').val('');
+        });
+        $('#butt5').click(function() {	
+		$('#varname').val('');
+        });
+        $('#butt6').click(function() {	
+		$('#varname').val('1');
+        });
+        $('#butt7').click(function() {	
+		$('#varname').val('0');
+        });
+         $('#butt8').click(function() {	
+		$('input').val(''); 
+        });       
+        $('#butt9').click(function() {	
+		$('#ta').val(''); 
+        });   
+ });
+ </script>
+<body>
+Раздел (Например qiwi):<br />
+<input type="text" name="" id="razname"  size="128"><br />
+Название (Например: enable или login):<br />
+<input type="text" name="" id="name" size="128"><br />
+Значение по умолчанию:<br />
+<input type="text" name="" id="varname" size="128"><br /><button id="butt5">Clear</button><button id="butt6">True</button><button id="butt7">False</button><br /><br />
+Widget<br />
+Тип: 
+<select id="inputtype">
+<option value="inputbox">InputBox</option>
+<option value="checkbox">CheckBox</option>
+</select>
+<br />
+Название (Например: IP адрес):<br />
+<input type="text" name="" id="name1" size="128"> <button id="butt2">2 Dscr2</button><br />
+Описания (Например: Это IP адрес):<br />
+<input type="text" name="" id="descr"  size="128"><br />
+<button id="butt1">Получить</button> <button id="butt3">CLEAR LAST 3</button>  <button id="butt8">CLEAR All</button><button id="butt9">CLEAR RESULT</button><br /><br />
+<textarea name="" id="ta" style="width:900px; height: 300px;"></textarea>
+</body>
+</html>
