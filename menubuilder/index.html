@@ -6,6 +6,16 @@
     <script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
   </head>
  <script>
+ function gen_declare()
+ {
+ 		var str = $('#ta').val();
+		var raz = $('#razname').val();
+		str +='declare -A '+raz;
+		str += "\r\n";
+		str +=raz+'[\'widget\']=\'menu "'+$('#name1').val()+'" "'+$('#descr').val()+'"\'';
+		str += "\r\n";
+		$('#ta').val(str);
+ }
  $(document).ready(function() {
 	$('#butt1').click(function() {
 		var ta = $('#ta');
@@ -42,6 +52,21 @@
         $('#butt9').click(function() {	
 		$('#ta').val(''); 
         });   
+        $('#butt10').click(function() {
+	   gen_declare();
+        });  
+        $('#butt11').click(function() {
+	   gen_declare();
+	   var str = $('#ta').val();
+	   var raz = $('#razname').val();
+	   str += "\r\n";
+	   str +=raz+'[\'enable\']=\'1\'';	   
+	   str += "\r\n";
+	   str +=raz+'[\'enable.widget\']=\'checkbox "Включить" "Включить"\'';
+	   str += "\r\n";
+	   $('#ta').val(str);
+        });  
+
  });
  </script>
 <body>
@@ -62,7 +87,7 @@ Widget<br />
 <input type="text" name="" id="name1" size="128"> <button id="butt2">2 Dscr2</button><br />
 Описания (Например: Это IP адрес):<br />
 <input type="text" name="" id="descr"  size="128"><br />
-<button id="butt1">Получить</button> <button id="butt3">CLEAR LAST 3</button>  <button id="butt8">CLEAR All</button><button id="butt9">CLEAR RESULT</button><br /><br />
+<button id="butt1">Получить</button> <button id="butt3">CLEAR LAST 3</button>  <button id="butt8">CLEAR All</button><button id="butt9">CLEAR RESULT</button><button id="butt10">MAKE DECLARE</button><button id="butt11">MAKE DECLARE WUTH ENABLE</button><br /><br />
 <textarea name="" id="ta" style="width:900px; height: 300px;"></textarea>
 </body>
 </html>
