@@ -1,13 +1,19 @@
 #!/bin/bash
 
 declare -A app
+app['path']='/app/carbon_as'
 app['local.ip']='169.1.0.1/8'
 app['wizard']='1'
-app['ppp-server.ip']='10.0.201.1'
+app['db.user']='KNL_USER'
+app['db.pass']='hjedvtht'
 app['name']='Carbon AS 5'
+app['appname']='carbon_as'
+app['img']='/static/i/carbon_as.png'
 
 declare -A srv
 #pptp
+srv['pptpd.comment']=''
+srv['pptpd.comment.widget']='readonly "     Опции VPN                                        " ""'
 srv['widget']='menu "Настройки серверов" "Настройка PPTP, L2TP, PPPoE и других серверов"'
 srv['pptpd.enabled']='1'
 srv['pptpd.enabled.widget']='checkbox "Включить PPTP-сервер" "Включить PPTP-сервер"'
@@ -28,21 +34,48 @@ srv['ppp-server.ip']='10.0.201.1'
 srv['ppp-server.ip.widget']='inputbox "Адрес сервера для PPP-туннелей" "IP-адрес для VPN-серверов"'
 
 #firewall
+srv['firewall.comment']=''
+srv['firewall.comment.widget']='readonly "     Опции Firewall                                   " ""'
 srv['firewall.enabled']='1'
 srv['firewall.new_limit_l']='2000'
 srv['firewall.new_limit_l.widget']='inputbox "Ограничить колво новых соед/сек из лок.сети" "Рекомендуется 500-1000"'
 srv['firewall.new_limit_e']='2000'
 srv['firewall.new_limit_e.widget']='inputbox "Ограничить колво новых соед/сек из Интернет" "Рекомендуется 500-1000"'
-#ideco_nasd
-srv['ideco_nasd.enabled']='1'
+
+#nasd
+srv['nasd.comment']=''
+srv['nasd.comment.widget']='readonly "     Управление Carbon AS 5                           " ""'
+srv['nasd.enabled']='1'
+srv['nasd.billing']='ideco'
+srv['nasd.billing.widget']='radiolist "Выбор типа биллинга" "Необходимо для обеспечения совместимости с несколькими биллингами"'
+srv['nasd.billing.list']='"ideco" "Ideco ACP 3" "" "carbon" "Carbon Billing 5" ""'
+
 
 #nfusens
 srv['nfusens.enabled']='1'
 
 #bind
+srv['bind.comment']=''
+srv['bind.comment.widget']='readonly "     Настройки DNS сервера                            " ""'
 srv['bind.enabled']='1'
 srv['bind.enabled.widget']='checkbox "Включить DNS сервер BIND" "Включить DNS сервер бинд"'
 
+#quagga
+srv['quagga.comment']=''
+srv['quagga.comment.widget']='readonly "Настройки QUAGGA (Zebra, OSPF, BGP, RIP)         " ""'
+srv['quagga.enabled.widget']='checkbox "Включить ROUTING-сервер" "Quagga (Zebra): BGP, OSPF, RIP"'
+srv['quagga.enabled']='0'
+srv['quagga.ospf.enabled.widget']='checkbox "Включить поддержку OSPF" ""'
+srv['quagga.ospf.enabled']='0'
+srv['quagga.hostname.widget']='inputbox "Hostname для Quagga" "Нужно для BGP, OSPF, RIP"'
+srv['quagga.hostname']='Carbon'
+srv['quagga.password.widget']='inputbox "Пароль для терминального доступа" "Если не задан - терминальный доступ будет запрещён"'
+srv['quagga.password']=''
+srv['quagga.password.widget']='inputbox "Пароль для терминального доступа" "Если не задан - терминальный доступ будет запрещён"'
+srv['quagga.enable_password']=''
+srv['quagga.enable_password.widget']='inputbox "Пароль для привилегированного доступа" "Если не задан - привелигерованный доступ будет запрещён"'
+srv['quagga.saveconfig']=''
+srv['quagga.saveconfig.widget']='cmd "Сохранить настройки Quagga" "save_quagga_config"'
 
 declare -A radclient
 radclient['widget']='menu "Настройки Radius" "Настройки подключения к биллингу (АСР / ААА-серверу)"'
@@ -68,40 +101,191 @@ network['if.name.widget']='inputbox "Имя интерфейса" "Имя инт
 network['if.gate.widget']='inputbox "IP адрес шлюза" "IP адрес шлюза, например 10.0.0.1"'
 network['if.disabled.widget']='checkbox "Отключить интерфейс" "Включить/выключить интерфейс"'
 network['if.device.widget']='interface_list "Физический интерфейс" "Физический интерфейс, например eth0/eth1"'
+network['if.vlan.widget']='checkbox "VLAN-интерфейс" "Включает режим VLAN для этого интерфейса"'
 network['if.brd.widget']='inputbox "Бродкаст адрес" "Необходимо только для vlan"'
 network['if.tag.widget']='inputbox "Тэг vlan" "Необходимо только для vlan"'
 network['if.role.widget']='radiolist "Роль интерфейса" "External - внешний, Local - внутренний"'
 network['if.role.list']='"External" "Внешний" "Для доступа к вышестоящему провайдеру" "Local" "Внутренний" "Для подключений абонентов"'
 
+#if
+network['if.name.default_value']='Ненастроенный интерфейс'
+network['if.ip.default_value']=''
+network['if.gate.default_value']=''
+network['if.device.default_value']=''
+network['if.disabled.default_value']='1'
+network['if.type.default_value']='ethernet'
+network['if.role.default_value']=''
+network['if.vlan.default_value']='0'
+network['if.brd.default_value']=''
+network['if.tag.default_value']=''
+
+
 #if0
-network['if0.name']='Внешний интерфейс'
-network['if0.ip']='10.0.0.10/8'
-network['if0.gate']='10.0.0.1'
+network['if0.name']='Внешний интерфейс 0'
+network['if0.ip']='10.90.140.20/16 '
+network['if0.gate']='10.90.1.3'
 network['if0.device']='eth0'
 network['if0.disabled']='0'
 network['if0.type']='ethernet'
 network['if0.role']='External'
+network['if0.vlan']='0'
+network['if0.brd']=''
+network['if0.tag']=''
 
 #if1
-network['if1.name']='Локальный интерфейс'
+network['if1.name']='Локальный интерфейс 1'
 network['if1.ip']='192.168.1.1/24'
 network['if1.gate']=''
 network['if1.device']='eth1'
 network['if1.disabled']='0'
 network['if1.type']='ethernet'
 network['if1.role']='Local'
+network['if1.vlan']='0'
+network['if1.brd']=''
+network['if1.tag']=''
+
+##if2
+network['if2.name']='Ненастроенный интерфейс 2'
+network['if2.ip']=''
+network['if2.gate']=''
+network['if2.device']='eth0'
+network['if2.disabled']='1'
+network['if2.type']='ethernet'
+network['if2.role']=''
+network['if2.vlan']='0'
+network['if2.brd']=''
+network['if2.tag']=''
+
+
+##if3
+network['if3.name']='Ненастроенный интерфейс 3'
+network['if3.ip']=''
+network['if3.gate']=''
+network['if3.device']='eth0'
+network['if3.disabled']='1'
+network['if3.type']='ethernet'
+network['if3.role']=''
+network['if3.vlan']='0'
+network['if3.brd']=''
+network['if3.tag']=''
+
+#if4
+network['if4.name']='Ненастроенный интерфейс 4'
+network['if4.ip']=''
+network['if4.gate']=''
+network['if4.device']='eth0'
+network['if4.disabled']='1'
+network['if4.type']='ethernet'
+network['if4.role']=''
+network['if4.vlan']='0'
+network['if4.brd']=''
+network['if4.tag']=''
+
+#if5
+network['if5.name']='Ненастроенный интерфейс 5'
+network['if5.ip']=''
+network['if5.gate']=''
+network['if5.device']='eth0'
+network['if5.disabled']='1'
+network['if5.type']='ethernet'
+network['if5.role']=''
+network['if5.vlan']='0'
+network['if5.brd']=''
+network['if5.tag']=''
+
+#if6
+network['if6.name']='Ненастроенный интерфейс 6'
+network['if6.ip']=''
+network['if6.gate']=''
+network['if6.device']='eth0'
+network['if6.disabled']='1'
+network['if6.type']='ethernet'
+network['if6.role']=''
+network['if6.vlan']='0'
+network['if6.brd']=''
+network['if6.tag']=''
+
+#if7
+network['if7.name']='Ненастроенный интерфейс 7'
+network['if7.ip']=''
+network['if7.gate']=''
+network['if7.device']='eth0'
+network['if7.disabled']='1'
+network['if7.type']='ethernet'
+network['if7.role']=''
+network['if7.vlan']='0'
+network['if7.brd']=''
+network['if7.tag']=''
+
+#if8
+network['if8.name']='Ненастроенный интерфейс 8'
+network['if8.ip']=''
+network['if8.gate']=''
+network['if8.device']='eth0'
+network['if8.disabled']='1'
+network['if8.type']='ethernet'
+network['if8.role']=''
+network['if8.vlan']='0'
+network['if8.brd']=''
+network['if8.tag']=''
+
+#routes
+network['route.widget']='table "Настройка маршрутов" "Настройки маршрута: network, gate"'
+network['route']=''
+network['route.ip.widget']='ip_list "IP адрес сети" "IP адрес интерфейса и маска, формат 10.90.140.10/24"'
+network['route.name.widget']='inputbox "Имя интерфейса" "Имя интерфейса, например Внешний интерфейс"'
+network['route.gate.widget']='inputbox "IP адрес шлюза" "IP адрес шлюза, например 10.0.0.1"'
+network['route.device.widget']='interface_list "Физический интерфейс" "Физический интерфейс, например eth0/eth1"'
+network['route.disabled.widget']='checkbox "Отключить маршрут" "Включить/выключить интерфейс"'
+
+#route0
+network['route0.name']='10.0.0.10/8 via 10.0.0.1'
+network['route0.ip']='10.0.0.10/8'
+network['route0.gate']='10.0.0.1'
+network['route0.device']='eth0'
+network['route0.disabled']='1'
+
+#portmaps
+network['portmap.widget']='table "Настройка проброса портов" "Настройки портмаппинга: ext_port -> local_ip:local_port"'
+network['portmap']=''
+network['portmap.name.widget']='inputbox "Описание" "Например: открытие доступа к локальному веб-серверу"'
+network['portmap.local_ip.widget']='inputbox "IP адрес публикуемого компьютера" "Без маски, например: 10.90.140.10"'
+network['portmap.ext_port.widget']='inputbox "Порт, доступный извне" "Трафик идущий на этот порт будет пробрасываться на локальный порт"'
+network['portmap.local_port.widget']='inputbox "Порт на публикуемом компьютере" ""'
+network['portmap.disabled.widget']='checkbox "Отключить проброс" "Проброс не будет обрабатываться"'
+
+#portmap0
+network['portmap0.name']='Веб-сервер (пример) 0'
+network['portmap0.local_ip']='192.168.1.88'
+network['portmap0.ext_port']='1080'
+network['portmap0.local_port']='80'
+network['portmap0.disabled']='1'
+
+#portmap1
+network['portmap1.name']='Mysql-сервер (пример) 1'
+network['portmap1.local_ip']='192.168.1.88'
+network['portmap1.ext_port']='3306'
+network['portmap1.local_port']='3306'
+network['portmap1.disabled']='1'
+
+#portmap2
+network['portmap2.name']='Ненастроенный проброс 2'
+network['portmap2.local_ip']=''
+network['portmap2.ext_port']=''
+network['portmap2.local_port']=''
+network['portmap2.disabled']='1'
 
 declare -A help
 help['widget']='textbox "Справка" "/app/carbon_as/usr/share/softrouter"'
 
 declare -A reg
 reg['widget']='menu "Регистрация NAS-сервера" ""'
-reg['actcode']=''
-reg['actcode.widget']='inputbox "Код активации" ""'
 reg['regnumber']=''
 reg['regnumber.widget']='inputbox "Регистрационный номер" ""'
-reg['installcode']=''
+reg['installcode']='11300-55506-12379'
 reg['installcode.widget']='inputbox "Код установки" ""'
+reg['actcode']=''
+reg['actcode.widget']='inputbox "Код активации" ""'
 
 declare -A ctl
 ctl['start']='/service start'

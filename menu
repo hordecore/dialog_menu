@@ -39,13 +39,13 @@ create_mainmenu() {
 		# echo "main[$array_name.widget]="${item['widget']}""
 	done <<< "$(fgrep declare $CONFIG)"
 	main[softreboot]=''
-	main[softreboot.widget]="cmd 'Сохранить и применить настройки' 'save_and_exit && appctl carbon_as restart'"
+	main[softreboot.widget]="cmd 'Сохранить и применить настройки' 'save_and_exit && appctl ${app['appname']} restart'"
 	main[widget]="menu 'Меню ${app['name']}'"
 	return 0
 }
 
 create_mainmenu
-show_recur main menu
+show_recur main mainmenu
 if dialog --yesno "Сохранить изменения?" 5 30; then
 	save_and_exit
 fi

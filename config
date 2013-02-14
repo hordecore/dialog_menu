@@ -2,6 +2,7 @@
 
 declare -A app
 app['name']='Cloudlich 1.00'
+app['name']='cloudlich_1'
 
 declare -A transmission
 transmission['widget']='menu "Настройки торрент-клиента" ""'
