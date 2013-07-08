@@ -90,7 +90,6 @@ __show_interface_list() {
 	item_name="Выбор интерфейса"
 	while read dev; do 
 		local mac=$(ip -o link show dev $dev | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}' | grep -v 'ff:ff:ff:ff:ff:ff')
-		# cmd="$cmd '$dev' '$mac' ''"
 		cmd="$cmd '$(echo $dev | tr -d '[A-Z]')' '$mac' ''"
 	done <<< "$(cat /proc/net/dev | awk -F : '{if (NR>2) print $1}' | egrep -v "(lo|imq|tunl|teql|gre|vnet)" )"
 	local baseopts="$baseopts --menu '$item_name'"
@@ -103,7 +102,6 @@ __show_interface_list() {
 	LOG ${FUNCNAME[0]} REZ2 ${REZ}
 	echo $REZ
 	return 0
-
 }
 
 __show_menu_filter() {
@@ -167,21 +165,17 @@ __show_menu() {
 	declare -A item
 	local REZ
 	eval item=$(set | grep "^$input=" | sed s/$input=//)
-
 	while IFS== read -r var val; do
 		[[ "$var" == \#* ]] && continue
 		[ "$var" = '' ] && continue
 		[[ "$var" = declare* ]] && continue
 		[[ "$var" != ${input}* ]]  && continue
-
 		local array=${var%%[*}
 		local key="$(echo ${var##*[\'} | sed -s "s/'.*//g")"
-
 		if [ $key = widget ]; then
 			eval widget=( ${item[$key]} )
 			item_name=${widget[1]}
 		fi
-
 		if [ -n "${item[$key.widget]}" ]; then
 			eval widget=( ${item[$key.widget]} )
 			case "${widget[0]}" in
@@ -203,7 +197,6 @@ __show_menu() {
 			((ITEM_COUNT++))
 		fi
 	done < config
-
 	local baseopts="$baseopts --menu '$item_name'"
 	cmd="$cmd 'Назад' '' ''" ;
 	echo "$cmd"
